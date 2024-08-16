@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RabbitMqProducer } from '../rabbit-mq/queue.publisher';
 import { RedisService } from './redis.service';
 
 /**
@@ -15,14 +16,19 @@ import { RedisService } from './redis.service';
 export class RedisFifoQueueConsumer extends RedisService {
   private _queue: string;
   private _pollingIntervalInMilliSeconds: number;
+  private _rabbitMqExchange: string;
 
-  constructor(@Inject() configService: ConfigService) {
+  constructor(
+    @Inject() configService: ConfigService,
+    private readonly rabbitMqProducer: RabbitMqProducer,
+  ) {
     super(configService);
 
     this._queue = configService.get('redis.queue');
     this._pollingIntervalInMilliSeconds = configService.get(
       'redis.pollingIntervalInMilliSeconds',
     );
+    this._rabbitMqExchange = configService.get('rabbitMq.exchange');
   }
 
   private async _consumeMessage(): Promise<void> {
@@ -49,16 +55,19 @@ export class RedisFifoQueueConsumer extends RedisService {
     }
 
     if (action === 'increamentCounter') {
-      const data = this.increamentCounter({
+      const data = await this.increamentCounter({
         key: parameters.key,
         ttl: parameters.ttl,
       });
 
-      console.log('data: ', data);
+      console.log(
+        `[INCREAMENT COUNTER] Key: ${parameters.key} | Updated Value: ${data}`,
+      );
 
-      /**
-       * @todo prompt the rabbit-mq consumers about the updated data.
-       */
+      this.rabbitMqProducer.sendMessage({
+        exchange: this._rabbitMqExchange,
+        message: `[INCREAMENT COUNTER] Key: ${parameters.key} | Updated Value: ${data}`,
+      });
     } else {
       console.log(
         '[REDIS FIFO QUEUE CONSUMER] Invalid Message Found! Action Value is incorrect',
