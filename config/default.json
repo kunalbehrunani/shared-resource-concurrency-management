@@ -5,5 +5,12 @@
     "port": 6379,
     "queue": "redis-update-queries",
     "pollingIntervalInMilliSeconds": 100
+  },
+  "rabbitMq": {
+    "exchange": "redis-update-queries",
+    "queues": {
+      "moduleA": "module-a-rabbit-mq-subscriber",
+      "moduleB": "module-b-rabbit-mq-subscriber"
+    }
   }
 }
