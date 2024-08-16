@@ -1,20 +1,20 @@
 import { BadGatewayException, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 
 @Injectable()
 export class RedisService {
   private _client: Redis;
-  private _host: string = '127.0.0.1';
-  private _port: number = 6379;
 
-  constructor() {
+  constructor(private readonly configService: ConfigService) {
+    const redisConfig = this.configService.get('redis');
     this._client = new Redis({
-      host: this._host,
-      port: this._port,
+      host: redisConfig.host,
+      port: redisConfig.port,
       retryStrategy: function (times) {
         if (times >= 1) {
           throw new BadGatewayException(
-            '[SYSTEM ERROR] Unable to connect to Redis',
+            '[SYSTEM ERROR] | REDIS | Unable to connect to Redis',
             {
               cause:
                 'Please ensure redis server - ' + this._host + ' is active',
@@ -26,5 +26,36 @@ export class RedisService {
         return 0;
       },
     });
+  }
+
+  protected async increamentCounter(param: {
+    key: string;
+    ttl?: number;
+  }): Promise<number> {
+    const data = await this._client.incr(param.key);
+    if (param.ttl && data === 1) {
+      await this._client.expire(param.key, param.ttl);
+    }
+    return data;
+  }
+
+  protected async pushMessageToQueue(param: {
+    queue: string;
+    message: string;
+  }): Promise<void> {
+    await this._client.lpush(param.queue, param.message);
+    return;
+  }
+
+  protected async popMessageFromQueue(param: {
+    queue: string;
+  }): Promise<string> {
+    let data: string;
+
+    try {
+      data = await this._client.rpop(param.queue);
+    } catch (err) {}
+
+    return data;
   }
 }
