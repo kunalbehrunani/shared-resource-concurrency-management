@@ -3,6 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import * as fs from 'fs';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ModuleAService } from './module-a/module-a.service';
+import { ModuleARabbitMqConsumer } from './module-a/module-a.subscriber';
+import { ModuleBService } from './module-b/module-b.service';
+import { ModuleBRabbitMqConsumer } from './module-b/module-b.subscriber';
+import { RabbitMqProducer } from './utilities/rabbit-mq/queue.publisher';
 import { RedisFifoQueueConsumer } from './utilities/redis/fifo-queue.consumer';
 import { RedisFifoQueueProducer } from './utilities/redis/fifo-queue.producer';
 
@@ -22,10 +27,29 @@ const defaultConfig = () => {
     }),
   ],
   controllers: [AppController],
-  providers: [AppService, RedisFifoQueueProducer, RedisFifoQueueConsumer],
+  providers: [
+    AppService,
+    RedisFifoQueueProducer,
+    RedisFifoQueueConsumer,
+    RabbitMqProducer,
+    ModuleAService,
+    ModuleARabbitMqConsumer,
+    ModuleBService,
+    ModuleBRabbitMqConsumer,
+  ],
 })
 export class AppModule {
-  constructor(@Inject() redisFifoQueueConsumer: RedisFifoQueueConsumer) {
+  constructor(
+    @Inject() redisFifoQueueConsumer: RedisFifoQueueConsumer,
+    private readonly moduleAService: ModuleAService,
+  ) {
     redisFifoQueueConsumer.start();
+
+    setTimeout(() => {
+      this.moduleAService.increamentCounter({
+        key: 'test',
+        ttl: 100,
+      });
+    }, 2000);
   }
 }
